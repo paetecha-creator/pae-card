@@ -150,6 +150,13 @@ export default function App() {
     });
   }, []);
 
+  // Handle Import and Overwrite Transactions from Excel
+  const handleImportTransactions = useCallback((importedTxs: Transaction[]) => {
+    setTransactions(importedTxs);
+    saveTransactions(importedTxs);
+  }, []);
+
+
   // Handle Save Card
   const handleSaveCard = useCallback((updatedCard: CreditCard) => {
     setCards((prev) => {
@@ -225,6 +232,7 @@ export default function App() {
             cards={cards}
             onOpenAddModal={() => handleOpenAddModal('ซื้อ')}
             onEditTransaction={handleEditTx}
+            onImportTransactions={handleImportTransactions}
           />
         )}
 

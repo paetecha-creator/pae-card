@@ -1,12 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { CreditCard, Transaction, TransactionType } from '../types';
 import { formatCurrency, formatThaiDate } from '../utils/billingEngine';
-import { exportTransactionsToCSV } from '../utils/storage';
+import { exportTransactionsToExcel, parseTransactionsFromExcelFile } from '../utils/excelUtils';
 import {
   Search,
   Filter,
   Plus,
-  Download,
+  FileSpreadsheet,
+  Upload,
   Edit2,
   Calendar,
   CreditCard as CardIcon,
@@ -14,6 +15,9 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   CheckCircle2,
+  AlertTriangle,
+  X,
+  FileUp,
 } from 'lucide-react';
 
 interface TransactionsViewProps {
@@ -21,6 +25,7 @@ interface TransactionsViewProps {
   cards: CreditCard[];
   onOpenAddModal: () => void;
   onEditTransaction: (tx: Transaction) => void;
+  onImportTransactions: (imported: Transaction[]) => void;
 }
 
 export const TransactionsView: React.FC<TransactionsViewProps> = ({
@@ -28,11 +33,24 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   cards,
   onOpenAddModal,
   onEditTransaction,
+  onImportTransactions,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCard, setSelectedCard] = useState<string>('ALL');
   const [selectedType, setSelectedType] = useState<string>('ALL');
   const [selectedMonth, setSelectedMonth] = useState<string>('ALL'); // YYYY-MM or ALL
+
+  // File upload input ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Import states
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [importNotice, setImportNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [pendingImport, setPendingImport] = useState<{
+    transactions: Transaction[];
+    count: number;
+    filename: string;
+  } | null>(null);
 
   // Extract available months from data
   const availableMonths = useMemo(() => {
@@ -95,21 +113,84 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     return { totalSpend: spend, totalRefund: refund, totalBill: bill };
   }, [filteredTransactions]);
 
-  // Download filtered CSV
-  const handleExportCSV = () => {
-    const csvContent = exportTransactionsToCSV(filteredTransactions);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `PaeCard_Export_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Export to Excel (.xlsx)
+  const handleExportExcel = () => {
+    // Export either filtered transactions or all transactions
+    const listToExport = filteredTransactions.length > 0 ? filteredTransactions : transactions;
+    const today = new Date().toISOString().slice(0, 10);
+    const fileName = `PaeCard_รายการ_${today}.xlsx`;
+    exportTransactionsToExcel(listToExport, fileName);
+  };
+
+  // Trigger file input click
+  const handleTriggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  // Handle Excel File Selected
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingFile(true);
+    setImportNotice(null);
+
+    try {
+      const result = await parseTransactionsFromExcelFile(file);
+      if (result.success && result.transactions) {
+        // Show confirmation modal to overwrite
+        setPendingImport({
+          transactions: result.transactions,
+          count: result.count || result.transactions.length,
+          filename: file.name,
+        });
+      } else {
+        setImportNotice({
+          type: 'error',
+          message: result.message || 'ไม่สามารถอ่านไฟล์ Excel ได้',
+        });
+      }
+    } catch (err) {
+      setImportNotice({
+        type: 'error',
+        message: 'เกิดข้อผิดพลาดในการประมวลผลไฟล์: ' + (err instanceof Error ? err.message : 'Unknown error'),
+      });
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
+
+  // Confirm Import Overwrite
+  const handleConfirmOverwrite = () => {
+    if (!pendingImport) return;
+
+    onImportTransactions(pendingImport.transactions);
+    setImportNotice({
+      type: 'success',
+      message: `นำเข้าไฟล์ Excel สำเร็จ! บันทึกทับข้อมูลเดิมเรียบร้อยแล้ว (${pendingImport.count} รายการ)`,
+    });
+    setPendingImport(null);
+
+    // Auto clear notification after 5 seconds
+    setTimeout(() => {
+      setImportNotice(null);
+    }, 5000);
   };
 
   return (
     <div className="pb-24 pt-4 px-4 max-w-md mx-auto space-y-4">
+      {/* Hidden File Input for Excel Import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept=".xlsx, .xls, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+        className="hidden"
+      />
+
       {/* Top Title & Actions */}
       <div className="flex items-center justify-between">
         <div>
@@ -119,24 +200,62 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <button
+          onClick={onOpenAddModal}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition active:scale-95"
+        >
+          <Plus className="w-4 h-4" />
+          <span>เพิ่มรายการ</span>
+        </button>
+      </div>
+
+      {/* Excel Action Bar: Export & Import */}
+      <div className="flex items-center gap-2 p-2 rounded-2xl bg-slate-900 border border-slate-800 shadow-sm">
+        <button
+          onClick={handleExportExcel}
+          title="ดาวน์โหลดข้อมูลเป็นไฟล์ Excel (.xlsx)"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition active:scale-95"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+          <span>ดาวน์โหลด Excel</span>
+        </button>
+
+        <button
+          onClick={handleTriggerFileInput}
+          disabled={isProcessingFile}
+          title="นำเข้าไฟล์ Excel ที่แก้ไขแล้วมาบันทึกทับข้อมูลเดิม"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 text-xs font-bold transition active:scale-95"
+        >
+          <Upload className={`w-4 h-4 text-sky-400 ${isProcessingFile ? 'animate-bounce' : ''}`} />
+          <span>{isProcessingFile ? 'กำลังอ่านไฟล์...' : 'นำเข้า Excel ทับข้อมูลเดิม'}</span>
+        </button>
+      </div>
+
+      {/* Import Notification Toast */}
+      {importNotice && (
+        <div
+          className={`flex items-start justify-between p-3 rounded-2xl border text-xs transition ${
+            importNotice.type === 'success'
+              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+              : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            {importNotice.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            )}
+            <span>{importNotice.message}</span>
+          </div>
           <button
-            onClick={handleExportCSV}
-            title="ส่งออก CSV"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 text-xs font-medium border border-slate-700 transition"
+            onClick={() => setImportNotice(null)}
+            className="p-1 rounded text-slate-400 hover:text-white"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>CSV</span>
-          </button>
-          <button
-            onClick={onOpenAddModal}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>เพิ่มรายการ</span>
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
-      </div>
+      )}
 
       {/* Search Bar */}
       <div className="relative">
@@ -324,6 +443,57 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           ))
         )}
       </div>
+
+      {/* Confirmation Modal: Import & Overwrite */}
+      {pendingImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl text-slate-200 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">ยืนยันนำเข้าทับข้อมูลเดิม</h3>
+                <p className="text-xs text-slate-400">{pendingImport.filename}</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">จำนวนรายการในไฟล์:</span>
+                <span className="font-bold font-num text-white text-sm">
+                  {pendingImport.count} รายการ
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">รายการเดิมในระบบ:</span>
+                <span className="font-num text-slate-400">
+                  {transactions.length} รายการ
+                </span>
+              </div>
+              <div className="pt-2 border-t border-slate-800 text-[11px] text-amber-300/90 leading-relaxed">
+                ⚠️ ข้อมูลรายการทั้งหมดในระบบจะถูก <strong>แทนที่/บันทึกทับ</strong> ด้วยข้อมูลจากไฟล์ Excel นี้
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={() => setPendingImport(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+              >
+                ยกเลิก
+              </button>
+
+              <button
+                onClick={handleConfirmOverwrite}
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white text-xs font-bold shadow-lg shadow-amber-600/20 transition active:scale-95"
+              >
+                ยืนยันบันทึกทับ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
