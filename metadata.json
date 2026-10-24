@@ -1,0 +1,6 @@
+{
+  "name": "PaeCard - บันทึกบัตรเครดิต & ผ่อนชำระ",
+  "description": "แอพบันทึกบัตรเครดิต ผ่อนชำระ เงินคืน ตัดรอบบิล สรุปยอดอัตโนมัติ สแกนใบหน้า/นิ้วมือ และสำรองข้อมูลคลาวด์",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
