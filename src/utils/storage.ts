@@ -42,7 +42,16 @@ export function loadTransactions(): Transaction[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        // Sanitize any corrupt titles that accidentally became Date strings
+        return parsed.map((t: Transaction) => {
+          if (t.title && (t.title.includes('GMT+') || t.title.includes('Indochina Time'))) {
+            let cleanTitle = '';
+            if (t.note) cleanTitle = t.note.split('(')[0].trim();
+            if (!cleanTitle) cleanTitle = t.type === 'จ่ายบิล' ? 'ชำระบิลบัตร' : t.type === 'เงินคืน' ? 'เงินคืน/Cashback' : 'รายการทั่วไป';
+            return { ...t, title: cleanTitle };
+          }
+          return t;
+        });
       }
     }
   } catch (err) {

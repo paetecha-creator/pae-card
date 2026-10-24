@@ -99,7 +99,15 @@ async function startServer() {
       const { transactions, cards, budget, security } = req.body;
 
       if (transactions && Array.isArray(transactions)) {
-        currentStore.transactions = transactions;
+        currentStore.transactions = transactions.map((t: any) => {
+          if (t && t.title && (t.title.includes('GMT+') || t.title.includes('Indochina Time'))) {
+            let cleanTitle = '';
+            if (t.note) cleanTitle = String(t.note).split('(')[0].trim();
+            if (!cleanTitle) cleanTitle = t.type === 'จ่ายบิล' ? 'ชำระบิลบัตร' : t.type === 'เงินคืน' ? 'เงินคืน/Cashback' : 'รายการทั่วไป';
+            return { ...t, title: cleanTitle };
+          }
+          return t;
+        });
       }
       if (cards && Array.isArray(cards)) {
         currentStore.cards = cards;

@@ -67,9 +67,11 @@ function parseExcelDate(val: unknown): string {
   // If already a Date object
   if (val instanceof Date) {
     if (!isNaN(val.getTime())) {
-      const y = val.getFullYear();
-      const m = String(val.getMonth() + 1).padStart(2, '0');
-      const d = String(val.getDate()).padStart(2, '0');
+      // If time is 23:59:xx, adjust for timezone rounding
+      const adjusted = new Date(val.getTime() + (val.getHours() === 23 ? 60000 : 0));
+      const y = adjusted.getFullYear();
+      const m = String(adjusted.getMonth() + 1).padStart(2, '0');
+      const d = String(adjusted.getDate()).padStart(2, '0');
       return `${y}-${m}-${d}`;
     }
   }
@@ -150,31 +152,62 @@ export async function parseTransactionsFromExcelFile(
       return { success: false, message: 'ไฟล์ Excel ไม่มีข้อมูลรายการที่เพียงพอ' };
     }
 
-    // Inspect header row to determine column indices
-    const headerRow = rawRows[0].map((h) => String(h || '').trim().toLowerCase());
+    // Explicit column indices matching standard Excel sheet format:
+    // Column A (0): วันที่รายการ
+    // Column B (1): ชื่อบัตรหรือช่องทางชำระ
+    // Column C (2): สถานะการชำระ
+    // Column D (3): รายการ/ร้านค้า (ต้องใช้คอลัมน์ D เสมอ)
+    // Column E (4): จำนวนเงิน
+    // Column F (5): หมายเหตุ
+    // Column G (6): หมวดหมู่
+    let dateIdx = 0;
+    let cardIdx = 1;
+    let typeIdx = 2;
+    let titleIdx = 3; // Column D (Index 3)
+    let amountIdx = 4;
+    let noteIdx = 5;
+    let categoryIdx = 6;
 
-    const findIndex = (possibleNames: string[]): number => {
-      return headerRow.findIndex((col) =>
-        possibleNames.some((name) => col.includes(name.toLowerCase()))
-      );
-    };
+    // Check header row for dynamic variations, but NEVER let "วันที่รายการ" match title
+    if (rawRows.length > 0) {
+      const headerRow = (rawRows[0] as unknown[]).map((h) => String(h || '').trim().toLowerCase());
 
-    let dateIdx = findIndex(['วันที่รายการ', 'วันที่', 'date']);
-    let cardIdx = findIndex(['ชื่อบัตรหรือช่องทางชำระ', 'ชื่อบัตร', 'บัตร', 'card', 'ช่องทางชำระ']);
-    let typeIdx = findIndex(['สถานะการชำระ', 'สถานะ', 'ประเภท', 'type', 'status']);
-    let titleIdx = findIndex(['รายการ/ร้านค้า', 'รายการ', 'ร้านค้า', 'description', 'title', 'item']);
-    let amountIdx = findIndex(['จำนวนเงิน', 'ยอดเงิน', 'amount', 'เงิน']);
-    let noteIdx = findIndex(['หมายเหตุ', 'note', 'remark', 'memo']);
-    let categoryIdx = findIndex(['หมวดหมู่', 'category', 'หมวด']);
+      headerRow.forEach((col, idx) => {
+        // Date
+        if (col === 'วันที่รายการ' || col === 'วันที่' || col === 'date') {
+          dateIdx = idx;
+        }
+        // Card
+        else if (col === 'ชื่อบัตรหรือช่องทางชำระ' || col === 'ชื่อบัตร' || col === 'บัตร' || col === 'card') {
+          cardIdx = idx;
+        }
+        // Payment Type
+        else if (col === 'สถานะการชำระ' || col === 'สถานะ' || col === 'ประเภท' || col === 'type' || col === 'status') {
+          typeIdx = idx;
+        }
+        // Merchant / Item (Column D) - Exclude any column containing "วัน" so "วันที่รายการ" is never matched!
+        else if (!col.includes('วัน') && (col === 'รายการ/ร้านค้า' || col === 'รายการ' || col === 'ร้านค้า' || col === 'description' || col === 'title' || col === 'item')) {
+          titleIdx = idx;
+        }
+        // Amount
+        else if (col === 'จำนวนเงิน' || col === 'ยอดเงิน' || col === 'amount') {
+          amountIdx = idx;
+        }
+        // Note
+        else if (col === 'หมายเหตุ' || col === 'note' || col === 'remark') {
+          noteIdx = idx;
+        }
+        // Category
+        else if (col === 'หมวดหมู่' || col === 'category') {
+          categoryIdx = idx;
+        }
+      });
+    }
 
-    // Fallbacks if headers didn't match known names (assume standard column positions 0-5)
-    if (dateIdx === -1) dateIdx = 0;
-    if (cardIdx === -1) cardIdx = 1;
-    if (typeIdx === -1) typeIdx = 2;
-    if (titleIdx === -1) titleIdx = 3;
-    if (amountIdx === -1) amountIdx = 4;
-    if (noteIdx === -1) noteIdx = 5;
-    if (categoryIdx === -1) categoryIdx = 6;
+    // Strict requirement: Ensure titleIdx always points to Column D (index 3) unless a non-date title column was found
+    if (titleIdx === dateIdx || titleIdx === 0) {
+      titleIdx = 3;
+    }
 
     const parsedTransactions: Transaction[] = [];
 
@@ -186,13 +219,22 @@ export async function parseTransactionsFromExcelFile(
       const rawDate = row[dateIdx];
       const rawCard = String(row[cardIdx] || '').trim();
       const rawType = String(row[typeIdx] || '').trim();
-      const rawTitle = String(row[titleIdx] || '').trim();
+
+      // Read title strictly from Column D (index 3 or titleIdx)
+      let rawTitleVal = row[titleIdx];
+      if (rawTitleVal === undefined || rawTitleVal === null || String(rawTitleVal).trim() === '') {
+        // Fallback directly to Column D (index 3)
+        if (row.length > 3) {
+          rawTitleVal = row[3];
+        }
+      }
+
       const rawAmountVal = row[amountIdx];
       const rawNote = String(row[noteIdx] || '').trim();
       const rawCategory = String(row[categoryIdx] || '').trim();
 
       // If the entire row is empty, skip
-      if (!rawDate && !rawCard && !rawTitle && !rawAmountVal) continue;
+      if (!rawDate && !rawCard && !rawTitleVal && !rawAmountVal) continue;
 
       // Parse Amount
       let amount = 0;
@@ -219,8 +261,30 @@ export async function parseTransactionsFromExcelFile(
         type = 'จ่ายบิล';
       }
 
-      // Title fallback
-      const title = rawTitle || (type === 'จ่ายบิล' ? 'ชำระบิลบัตร' : 'รายการทั่วไป');
+      // Sanitize Title: Ensure no Date strings leak into title
+      let title = '';
+      if (rawTitleVal instanceof Date) {
+        title = '';
+      } else if (typeof rawTitleVal === 'string') {
+        const str = rawTitleVal.trim();
+        // Check if string looks like an unformatted Date e.g. "Wed Oct 06 2027 23:59:56 GMT+0700" or ISO date
+        if (str.includes('GMT+') || str.includes('Indochina Time') || /^\d{4}-\d{2}-\d{2}$/.test(str)) {
+          title = '';
+        } else {
+          title = str;
+        }
+      } else if (rawTitleVal !== undefined && rawTitleVal !== null) {
+        title = String(rawTitleVal).trim();
+      }
+
+      // If title is empty in Column D, assign appropriate label based on note or type
+      if (!title) {
+        if (rawNote) {
+          title = rawNote.split('(')[0].trim() || (type === 'จ่ายบิล' ? 'ชำระบิลบัตร' : type === 'เงินคืน' ? 'เงินคืน/Cashback' : 'รายการทั่วไป');
+        } else {
+          title = type === 'จ่ายบิล' ? 'ชำระบิลบัตร' : type === 'เงินคืน' ? 'เงินคืน/Cashback' : 'รายการทั่วไป';
+        }
+      }
 
       // Installment & Category inference
       const installment = extractInstallmentMeta(rawNote, title);
