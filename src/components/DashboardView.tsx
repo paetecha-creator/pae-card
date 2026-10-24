@@ -15,6 +15,8 @@ import {
   TrendingUp,
   Wifi,
   WifiOff,
+  Cloud,
+  RefreshCw,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -26,6 +28,8 @@ interface DashboardViewProps {
   onSelectTab: (tab: 'dashboard' | 'transactions' | 'installments' | 'analytics' | 'cards' | 'settings') => void;
   onLockApp: () => void;
   isOnline: boolean;
+  syncStatus?: 'synced' | 'syncing' | 'offline' | 'idle';
+  onTriggerManualSync?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -36,6 +40,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectTab,
   onLockApp,
   isOnline,
+  syncStatus = 'synced',
+  onTriggerManualSync,
 }) => {
   // Current date reference (user data is centered around 2026-10)
   // Let's find the latest transaction date to anchor real statement periods naturally or use current system time
@@ -87,10 +93,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-bold text-white tracking-tight">PaeCard Wallet</h1>
-              {isOnline ? (
-                <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                  <Wifi className="w-3 h-3" /> ออนไลน์
+              {syncStatus === 'syncing' ? (
+                <span className="flex items-center gap-1 text-[10px] text-sky-300 bg-sky-500/15 px-2 py-0.5 rounded-full border border-sky-500/25 animate-pulse">
+                  <RefreshCw className="w-3 h-3 animate-spin" /> กำลังซิ้งค์...
                 </span>
+              ) : isOnline ? (
+                <button
+                  onClick={onTriggerManualSync}
+                  title="คลิกเพื่อตรวจสอบการซิ้งค์ล่าสุดกับเซิร์ฟเวอร์"
+                  className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/20 transition"
+                >
+                  <Cloud className="w-3 h-3 text-emerald-400" />
+                  <span>ซิ้งค์อัตโนมัติ</span>
+                </button>
               ) : (
                 <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
                   <WifiOff className="w-3 h-3" /> ออฟไลน์

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { BudgetSettings, CreditCard, FirebaseSyncSettings, Transaction, TransactionType } from './types';
 import {
   loadBudgetSettings,
@@ -16,6 +16,7 @@ import {
   saveTransactions,
 } from './utils/storage';
 import { calculateCardCycleSummary, groupInstallments } from './utils/billingEngine';
+import { fetchServerState, pushServerState } from './utils/cloudSyncService';
 import { useBiometrics } from './hooks/useBiometrics';
 import { useOnlineStatus } from './hooks/usePWAInstall';
 import { SecurityLock } from './components/SecurityLock';
@@ -36,6 +37,10 @@ export default function App() {
   const [budgetSettings, setBudgetSettings] = useState<BudgetSettings>(loadBudgetSettings);
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
 
+  // Cross-device sync status
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'idle'>('idle');
+  const lastSyncedTimeRef = useRef<number>(0);
+
   // Security & Biometrics
   const {
     security,
@@ -55,6 +60,115 @@ export default function App() {
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [defaultTxType, setDefaultTxType] = useState<TransactionType>('ซื้อ');
+
+  // Cross-device auto-sync fetcher
+  const syncWithServer = useCallback(async (isManual = false) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setSyncStatus('offline');
+      return;
+    }
+
+    if (isManual) {
+      setSyncStatus('syncing');
+    }
+
+    try {
+      const serverResponse = await fetchServerState();
+
+      if (serverResponse && serverResponse.success && serverResponse.data) {
+        const serverData = serverResponse.data;
+        const serverTimestamp = serverData.updatedAt || 0;
+
+        // If server data is newer than our last synced timestamp, pull it!
+        if (serverTimestamp > lastSyncedTimeRef.current) {
+          lastSyncedTimeRef.current = serverTimestamp;
+
+          if (serverData.transactions && Array.isArray(serverData.transactions)) {
+            setTransactions(serverData.transactions);
+            saveTransactions(serverData.transactions);
+          }
+          if (serverData.cards && Array.isArray(serverData.cards)) {
+            setCards(serverData.cards);
+            saveCards(serverData.cards);
+          }
+          if (serverData.budget) {
+            setBudgetSettings(serverData.budget);
+            saveBudgetSettings(serverData.budget);
+          }
+        }
+        setSyncStatus('synced');
+      } else {
+        // If server hasn't received data yet, push local seed data
+        const currentLocalTxs = loadTransactions();
+        const currentLocalCards = loadCards();
+        const currentLocalBudget = loadBudgetSettings();
+
+        const pushRes = await pushServerState({
+          transactions: currentLocalTxs,
+          cards: currentLocalCards,
+          budget: currentLocalBudget,
+        });
+
+        if (pushRes.success && pushRes.updatedAt) {
+          lastSyncedTimeRef.current = pushRes.updatedAt;
+        }
+        setSyncStatus('synced');
+      }
+    } catch (err) {
+      console.warn('Sync failed:', err);
+      setSyncStatus('idle');
+    }
+  }, []);
+
+  // Initial sync & background heartbeat listener across devices
+  useEffect(() => {
+    syncWithServer(false);
+
+    // Listen for tab focus / device wake to auto-sync latest data
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        syncWithServer(false);
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    // Heartbeat sync check every 15 seconds
+    const interval = setInterval(() => {
+      if (navigator.onLine) {
+        syncWithServer(false);
+      } else {
+        setSyncStatus('offline');
+      }
+    }, 15000);
+
+    return () => {
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      clearInterval(interval);
+    };
+  }, [syncWithServer]);
+
+  // Helper to push updates to server
+  const pushUpdateToCloud = useCallback(
+    (newTxs: Transaction[], newCards: CreditCard[], newBudget: BudgetSettings) => {
+      setSyncStatus('syncing');
+      pushServerState({
+        transactions: newTxs,
+        cards: newCards,
+        budget: newBudget,
+      }).then((res) => {
+        if (res.success && res.updatedAt) {
+          lastSyncedTimeRef.current = res.updatedAt;
+          setSyncStatus('synced');
+        } else {
+          setSyncStatus(navigator.onLine ? 'idle' : 'offline');
+        }
+      });
+    },
+    []
+  );
 
   // Calculate urgent due dates count for Navbar badge
   const upcomingDueCount = useMemo(() => {
@@ -135,41 +249,64 @@ export default function App() {
         // Sort descending
         updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         saveTransactions(updated);
+        // Push update across devices
+        pushUpdateToCloud(updated, cards, budgetSettings);
         return updated;
       });
     },
-    []
+    [cards, budgetSettings, pushUpdateToCloud]
   );
 
   // Handle Delete Transaction
-  const handleDeleteTransaction = useCallback((id: string) => {
-    setTransactions((prev) => {
-      const updated = prev.filter((t) => t.id !== id);
-      saveTransactions(updated);
-      return updated;
-    });
-  }, []);
+  const handleDeleteTransaction = useCallback(
+    (id: string) => {
+      setTransactions((prev) => {
+        const updated = prev.filter((t) => t.id !== id);
+        saveTransactions(updated);
+        pushUpdateToCloud(updated, cards, budgetSettings);
+        return updated;
+      });
+    },
+    [cards, budgetSettings, pushUpdateToCloud]
+  );
 
   // Handle Import and Overwrite Transactions from Excel
-  const handleImportTransactions = useCallback((importedTxs: Transaction[]) => {
-    setTransactions(importedTxs);
-    saveTransactions(importedTxs);
-  }, []);
-
+  const handleImportTransactions = useCallback(
+    (importedTxs: Transaction[]) => {
+      setTransactions(importedTxs);
+      saveTransactions(importedTxs);
+      pushUpdateToCloud(importedTxs, cards, budgetSettings);
+    },
+    [cards, budgetSettings, pushUpdateToCloud]
+  );
 
   // Handle Save Card
-  const handleSaveCard = useCallback((updatedCard: CreditCard) => {
-    setCards((prev) => {
-      let updated: CreditCard[];
-      if (prev.some((c) => c.id === updatedCard.id)) {
-        updated = prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
-      } else {
-        updated = [...prev, updatedCard];
-      }
-      saveCards(updated);
-      return updated;
-    });
-  }, []);
+  const handleSaveCard = useCallback(
+    (updatedCard: CreditCard) => {
+      setCards((prev) => {
+        let updated: CreditCard[];
+        if (prev.some((c) => c.id === updatedCard.id)) {
+          updated = prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
+        } else {
+          updated = [...prev, updatedCard];
+        }
+        saveCards(updated);
+        pushUpdateToCloud(transactions, updated, budgetSettings);
+        return updated;
+      });
+    },
+    [transactions, budgetSettings, pushUpdateToCloud]
+  );
+
+  // Handle Update Budget
+  const handleUpdateBudget = useCallback(
+    (newBudget: BudgetSettings) => {
+      setBudgetSettings(newBudget);
+      saveBudgetSettings(newBudget);
+      pushUpdateToCloud(transactions, cards, newBudget);
+    },
+    [transactions, cards, pushUpdateToCloud]
+  );
 
   // Open modal handlers
   const handleOpenAddModal = useCallback((defaultType: TransactionType = 'ซื้อ') => {
@@ -223,6 +360,8 @@ export default function App() {
             onSelectTab={setCurrentTab}
             onLockApp={lockApp}
             isOnline={isOnline}
+            syncStatus={syncStatus}
+            onTriggerManualSync={() => syncWithServer(true)}
           />
         )}
 
@@ -249,10 +388,7 @@ export default function App() {
             transactions={transactions}
             cards={cards}
             budgetSettings={budgetSettings}
-            onUpdateBudget={(b) => {
-              setBudgetSettings(b);
-              saveBudgetSettings(b);
-            }}
+            onUpdateBudget={handleUpdateBudget}
           />
         )}
 
@@ -279,10 +415,13 @@ export default function App() {
             onReloadData={(txs, c) => {
               setTransactions(txs);
               setCards(c);
+              pushUpdateToCloud(txs, c, budgetSettings);
             }}
             onLockApp={lockApp}
             isOnline={isOnline}
             isBiometricSupported={isBiometricSupported}
+            syncStatus={syncStatus}
+            onTriggerManualSync={() => syncWithServer(true)}
           />
         )}
       </main>
