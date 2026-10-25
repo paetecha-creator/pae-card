@@ -1,0 +1,16 @@
+{
+  "transactions": [],
+  "cards": [],
+  "budget": {
+    "monthlyBudget": 25000
+  },
+  "security": {
+    "pin": "1234",
+    "isBiometricAvailable": false,
+    "biometricEnabled": false,
+    "autoLockMinutes": 5,
+    "lastUnlockedAt": 1740000000000,
+    "isLocked": false
+  },
+  "updatedAt": 1740500000000
+}

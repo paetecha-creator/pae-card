@@ -34,14 +34,14 @@ export const DEFAULT_FIREBASE: FirebaseSyncSettings = {
 };
 
 /**
- * Loads transactions from localStorage or initializes with raw CSV data
+ * Loads transactions from localStorage or initializes with empty list
  */
 export function loadTransactions(): Transaction[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         // Sanitize any corrupt titles that accidentally became Date strings
         return parsed.map((t: Transaction) => {
           if (t.title && (t.title.includes('GMT+') || t.title.includes('Indochina Time'))) {
@@ -58,10 +58,9 @@ export function loadTransactions(): Transaction[] {
     console.error('Failed to load transactions from localStorage:', err);
   }
 
-  // First time initialization: parse CSV seed data
-  const seeded = parseCSVData(RAW_CSV_DATA);
-  saveTransactions(seeded);
-  return seeded;
+  // Clean fresh start: empty transactions
+  saveTransactions([]);
+  return [];
 }
 
 export function saveTransactions(transactions: Transaction[]): void {
@@ -73,14 +72,14 @@ export function saveTransactions(transactions: Transaction[]): void {
 }
 
 /**
- * Loads credit cards from localStorage or initializes with defaults
+ * Loads credit cards from localStorage or initializes with empty list
  */
 export function loadCards(): CreditCard[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CARDS);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -88,8 +87,8 @@ export function loadCards(): CreditCard[] {
     console.error('Failed to load cards:', err);
   }
 
-  saveCards(INITIAL_CARDS);
-  return INITIAL_CARDS;
+  saveCards([]);
+  return [];
 }
 
 export function saveCards(cards: CreditCard[]): void {
@@ -161,14 +160,43 @@ export function saveBudgetSettings(settings: BudgetSettings): void {
 }
 
 /**
- * Resets local data back to original seed data
+ * Resets all app data and settings to clean factory state
  */
-export function resetDataToDefault(): { transactions: Transaction[]; cards: CreditCard[] } {
+export function resetToFactorySettings(): {
+  transactions: Transaction[];
+  cards: CreditCard[];
+  budget: BudgetSettings;
+  security: SecuritySettings;
+  firebase: FirebaseSyncSettings;
+} {
+  saveTransactions([]);
+  saveCards([]);
+  saveBudgetSettings(DEFAULT_BUDGET);
+  saveSecuritySettings(DEFAULT_SECURITY);
+  saveFirebaseSettings(DEFAULT_FIREBASE);
+  return {
+    transactions: [],
+    cards: [],
+    budget: DEFAULT_BUDGET,
+    security: DEFAULT_SECURITY,
+    firebase: DEFAULT_FIREBASE,
+  };
+}
+
+/**
+ * Loads sample seed data from Google Sheets (178 items) on-demand
+ */
+export function loadSeedDataFromSheets(): { transactions: Transaction[]; cards: CreditCard[] } {
   const transactions = parseCSVData(RAW_CSV_DATA);
   saveTransactions(transactions);
   saveCards(INITIAL_CARDS);
   return { transactions, cards: INITIAL_CARDS };
 }
+
+/**
+ * Resets local data back to original seed data
+ */
+export const resetDataToDefault = loadSeedDataFromSheets;
 
 /**
  * Export transactions to CSV format matching user format

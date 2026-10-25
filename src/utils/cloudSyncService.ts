@@ -76,3 +76,25 @@ export async function pushServerState(payload: SyncPayload): Promise<{ success: 
     return { success: false };
   }
 }
+
+/**
+ * Resets personal server store to empty factory state
+ */
+export async function resetServerState(): Promise<ServerSyncResponse | null> {
+  try {
+    const res = await fetch('/api/reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Server returned ${res.status}`);
+    }
+    const data: ServerSyncResponse = await res.json();
+    return data;
+  } catch (err) {
+    console.warn('Failed to call reset on server:', err);
+    return null;
+  }
+}

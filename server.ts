@@ -17,12 +17,11 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-// Initial state builder
+// Initial state builder (Clean fresh app without pre-loaded data)
 function getInitialStore() {
-  const initialTransactions = parseCSVData(RAW_CSV_DATA);
   return {
-    transactions: initialTransactions,
-    cards: INITIAL_CARDS,
+    transactions: [],
+    cards: [],
     budget: { monthlyBudget: 25000 },
     security: {
       pin: '1234',
@@ -42,7 +41,7 @@ function loadStore() {
     if (fs.existsSync(STORE_FILE)) {
       const content = fs.readFileSync(STORE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      if (parsed && Array.isArray(parsed.transactions) && parsed.transactions.length > 0) {
+      if (parsed && Array.isArray(parsed.transactions)) {
         return parsed;
       }
     }
@@ -133,6 +132,23 @@ async function startServer() {
     } catch (err) {
       console.error('Error saving sync data:', err);
       res.status(500).json({ success: false, error: 'Failed to save sync state' });
+    }
+  });
+
+  // Reset all data and settings to factory default
+  app.post('/api/reset', (req, res) => {
+    try {
+      currentStore = getInitialStore();
+      saveStore(currentStore);
+      res.json({
+        success: true,
+        message: 'All data and settings reset successfully',
+        updatedAt: currentStore.updatedAt,
+        data: currentStore,
+      });
+    } catch (err) {
+      console.error('Failed to reset store:', err);
+      res.status(500).json({ success: false, error: 'Failed to reset store' });
     }
   });
 

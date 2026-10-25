@@ -222,23 +222,33 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           {/* Card Selection */}
           <div>
             <label className="text-xs text-slate-400 font-medium mb-1.5 block">บัตรเครดิตที่ใช้</label>
-            <div className="grid grid-cols-3 gap-2">
-              {cards.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setCard(c.name)}
-                  className={`p-2 rounded-xl text-xs font-medium border text-left flex items-center justify-between transition ${
-                    card.toLowerCase() === c.name.toLowerCase()
-                      ? 'bg-indigo-600/30 border-indigo-500 text-white font-bold'
-                      : 'bg-slate-800/40 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <span className="truncate">{c.name}</span>
-                  <span className="text-[10px] opacity-60">••{c.last4}</span>
-                </button>
-              ))}
-            </div>
+            {cards.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2">
+                {cards.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCard(c.name)}
+                    className={`p-2 rounded-xl text-xs font-medium border text-left flex items-center justify-between transition ${
+                      card.toLowerCase() === c.name.toLowerCase()
+                        ? 'bg-indigo-600/30 border-indigo-500 text-white font-bold'
+                        : 'bg-slate-800/40 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="truncate">{c.name}</span>
+                    <span className="text-[10px] opacity-60">••{c.last4}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <input
+                type="text"
+                placeholder="ระบุชื่อบัตร (เช่น KTC, BBL, KBANK...)"
+                value={card}
+                onChange={(e) => setCard(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500"
+              />
+            )}
           </div>
 
           {/* Item / Merchant Title */}

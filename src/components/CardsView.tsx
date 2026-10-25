@@ -18,6 +18,7 @@ interface CardsViewProps {
   cards: CreditCard[];
   transactions: Transaction[];
   onSaveCard: (card: CreditCard) => void;
+  onDeleteCard?: (cardId: string) => void;
   onSelectTransaction: (tx: Transaction) => void;
 }
 
@@ -25,6 +26,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
   cards,
   transactions,
   onSaveCard,
+  onDeleteCard,
   onSelectTransaction,
 }) => {
   const [selectedCardId, setSelectedCardId] = useState<string>(cards[0]?.id || '');
@@ -80,28 +82,50 @@ export const CardsView: React.FC<CardsViewProps> = ({
         </button>
       </div>
 
-      {/* Card Selection Horizontal Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
-        {cards.map((c) => (
+      {/* Empty State when no cards exist */}
+      {cards.length === 0 ? (
+        <div className="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 text-center space-y-4 my-4">
+          <div className="w-16 h-16 rounded-3xl bg-slate-800/80 mx-auto flex items-center justify-center text-indigo-400 shadow-inner">
+            <CardIcon className="w-8 h-8" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-base font-bold text-white">ยังไม่มีข้อมูลบัตรเครดิต</h2>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+              เพิ่มบัตรเครดิตของคุณ เช่น KTC, BBL, KBANK หรือบัตรอื่นๆ พร้อมกำหนดวันตัดรอบบิลและวันครบกำหนดชำระ
+            </p>
+          </div>
           <button
-            key={c.id}
-            onClick={() => setSelectedCardId(c.id)}
-            className={`px-3 py-2 rounded-xl font-bold flex items-center gap-2 transition shrink-0 ${
-              selectedCardId === c.id
-                ? 'bg-slate-800 text-white border border-indigo-500 shadow-md'
-                : 'bg-slate-900/60 text-slate-400 border border-slate-800 hover:text-white'
-            }`}
+            onClick={handleAddNewCard}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition active:scale-95"
           >
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.accentColor }} />
-            <span>{c.name}</span>
-            <span className="text-[10px] opacity-60 font-mono">••{c.last4}</span>
+            <Plus className="w-4 h-4" />
+            <span>+ เพิ่มบัตรเครดิตใบแรก</span>
           </button>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <>
+          {/* Card Selection Horizontal Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
+            {cards.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setSelectedCardId(c.id)}
+                className={`px-3 py-2 rounded-xl font-bold flex items-center gap-2 transition shrink-0 ${
+                  selectedCardId === c.id
+                    ? 'bg-slate-800 text-white border border-indigo-500 shadow-md'
+                    : 'bg-slate-900/60 text-slate-400 border border-slate-800 hover:text-white'
+                }`}
+              >
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.accentColor }} />
+                <span>{c.name}</span>
+                <span className="text-[10px] opacity-60 font-mono">••{c.last4}</span>
+              </button>
+            ))}
+          </div>
 
-      {/* Premium Metallic Card Display */}
-      {activeCard && (
-        <div className="relative">
+          {/* Premium Metallic Card Display */}
+          {activeCard && (
+            <div className="relative">
           <div
             className={`relative rounded-3xl p-6 bg-gradient-to-br ${activeCard.colorGradient} border border-slate-700/60 shadow-2xl text-white overflow-hidden`}
           >
@@ -272,12 +296,15 @@ export const CardsView: React.FC<CardsViewProps> = ({
           ))}
         </div>
       </div>
+      </>
+      )}
 
       {/* Edit modal */}
       <CardEditModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onSave={onSaveCard}
+        onDelete={onDeleteCard}
         card={editingCard}
       />
     </div>

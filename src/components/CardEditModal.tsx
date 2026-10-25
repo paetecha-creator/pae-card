@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { CreditCard } from '../types';
-import { X, CreditCard as CardIcon, Calendar, DollarSign, Shield } from 'lucide-react';
+import { X, CreditCard as CardIcon, Calendar, DollarSign, Shield, Trash2 } from 'lucide-react';
 
 interface CardEditModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (card: CreditCard) => void;
+  onDelete?: (cardId: string) => void;
   card?: CreditCard | null;
 }
 
@@ -13,6 +14,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   card,
 }) => {
   const isEditing = Boolean(card);
@@ -194,8 +196,24 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
             type="submit"
             className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-bold text-sm shadow-lg shadow-indigo-600/20 active:scale-95 transition mt-2"
           >
-            บันทึกข้อมูลบัตร
+            {isEditing ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลบัตร'}
           </button>
+
+          {isEditing && onDelete && card && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`ต้องการลบบัตร "${card.name}" ออกจากระบบใช่หรือไม่?`)) {
+                  onDelete(card.id);
+                  onClose();
+                }
+              }}
+              className="w-full py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>ลบบัตรนี้</span>
+            </button>
+          )}
         </form>
       </div>
     </div>

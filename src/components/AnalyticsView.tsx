@@ -413,6 +413,19 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         </button>
       </div>
 
+      {/* Empty State Banner if no transactions recorded yet */}
+      {transactions.length === 0 && (
+        <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center space-y-2.5 shadow-md">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+            <ChartIcon className="w-5 h-5" />
+          </div>
+          <div className="text-sm font-bold text-white">ยังไม่มีรายการสำหรับวิเคราะห์เปรียบเทียบ</div>
+          <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+            เมื่อคุณเริ่มบันทึกรายการใช้จ่ายผ่านบัตร หรือนำเข้าไฟล์ Excel (.xlsx) ระบบจะประมวลผลการเปรียบเทียบ MoM, YoY, สัดส่วนหมวดหมู่ และติดตามงบประมาณให้อัตโนมัติทันที
+          </p>
+        </div>
+      )}
+
       {/* TAB 1: PERIOD COMPARISON (MoM & YoY) */}
       {activeTab === 'COMPARISON' && (
         <div className="space-y-4">
@@ -459,11 +472,15 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       onChange={(e) => setBaseMonth(e.target.value)}
                       className="w-full px-2.5 py-2 rounded-xl bg-slate-800 text-white text-xs font-num font-bold border border-indigo-500/50 focus:outline-none"
                     >
-                      {availableMonths.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
+                      {availableMonths.length === 0 ? (
+                        <option value="">- ยังไม่มีข้อมูล -</option>
+                      ) : (
+                        availableMonths.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -476,11 +493,15 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       onChange={(e) => setCompareMonth(e.target.value)}
                       className="w-full px-2.5 py-2 rounded-xl bg-slate-800 text-white text-xs font-num font-bold border border-slate-700 focus:outline-none"
                     >
-                      {availableMonths.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
+                      {availableMonths.length === 0 ? (
+                        <option value="">- ยังไม่มีข้อมูล -</option>
+                      ) : (
+                        availableMonths.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
                 </div>
@@ -696,11 +717,15 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       onChange={(e) => setBaseYear(e.target.value)}
                       className="w-full px-2.5 py-2 rounded-xl bg-slate-800 text-white text-xs font-num font-bold border border-indigo-500/50 focus:outline-none"
                     >
-                      {availableYears.map((y) => (
-                        <option key={y} value={y}>
-                          ปี {y}
-                        </option>
-                      ))}
+                      {availableYears.length === 0 ? (
+                        <option value="">- ยังไม่มีข้อมูล -</option>
+                      ) : (
+                        availableYears.map((y) => (
+                          <option key={y} value={y}>
+                            ปี {y}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -711,11 +736,15 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       onChange={(e) => setCompareYear(e.target.value)}
                       className="w-full px-2.5 py-2 rounded-xl bg-slate-800 text-white text-xs font-num font-bold border border-slate-700 focus:outline-none"
                     >
-                      {availableYears.map((y) => (
-                        <option key={y} value={y}>
-                          ปี {y}
-                        </option>
-                      ))}
+                      {availableYears.length === 0 ? (
+                        <option value="">- ยังไม่มีข้อมูล -</option>
+                      ) : (
+                        availableYears.map((y) => (
+                          <option key={y} value={y}>
+                            ปี {y}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
                 </div>

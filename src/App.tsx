@@ -14,9 +14,10 @@ import {
   saveCards,
   saveFirebaseSettings,
   saveTransactions,
+  resetToFactorySettings,
 } from './utils/storage';
 import { calculateCardCycleSummary, groupInstallments } from './utils/billingEngine';
-import { fetchServerState, pushServerState } from './utils/cloudSyncService';
+import { fetchServerState, pushServerState, resetServerState } from './utils/cloudSyncService';
 import { useBiometrics } from './hooks/useBiometrics';
 import { useOnlineStatus } from './hooks/usePWAInstall';
 import { SecurityLock } from './components/SecurityLock';
@@ -298,6 +299,19 @@ export default function App() {
     [transactions, budgetSettings, pushUpdateToCloud]
   );
 
+  // Handle Delete Card
+  const handleDeleteCard = useCallback(
+    (cardId: string) => {
+      setCards((prev) => {
+        const updated = prev.filter((c) => c.id !== cardId);
+        saveCards(updated);
+        pushUpdateToCloud(transactions, updated, budgetSettings);
+        return updated;
+      });
+    },
+    [transactions, budgetSettings, pushUpdateToCloud]
+  );
+
   // Handle Update Budget
   const handleUpdateBudget = useCallback(
     (newBudget: BudgetSettings) => {
@@ -324,6 +338,26 @@ export default function App() {
   const handleOpenCardDetails = useCallback((card: CreditCard) => {
     setCurrentTab('cards');
   }, []);
+
+  // Handle Factory Reset - Reset all data and settings like a brand new app
+  const handleFactoryReset = useCallback(async () => {
+    // 1. Reset server store to clean defaults
+    await resetServerState();
+
+    // 2. Reset local store
+    const resetResult = resetToFactorySettings();
+
+    // 3. Update React states
+    setTransactions([]);
+    setCards(resetResult.cards);
+    setBudgetSettings(resetResult.budget);
+    setFirebaseSettings(resetResult.firebase);
+    updateSecuritySettings(resetResult.security);
+
+    lastSyncedTimeRef.current = Date.now();
+    setSyncStatus('synced');
+    setCurrentTab('dashboard');
+  }, [updateSecuritySettings]);
 
   // Render Lock Screen if application is locked
   if (security.isLocked) {
@@ -397,6 +431,7 @@ export default function App() {
             cards={cards}
             transactions={transactions}
             onSaveCard={handleSaveCard}
+            onDeleteCard={handleDeleteCard}
             onSelectTransaction={handleEditTx}
           />
         )}
@@ -417,6 +452,7 @@ export default function App() {
               setCards(c);
               pushUpdateToCloud(txs, c, budgetSettings);
             }}
+            onFactoryReset={handleFactoryReset}
             onLockApp={lockApp}
             isOnline={isOnline}
             isBiometricSupported={isBiometricSupported}

@@ -209,27 +209,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         </button>
       </div>
 
-      {/* Excel Action Bar: Export & Import */}
-      <div className="flex items-center gap-2 p-2 rounded-2xl bg-slate-900 border border-slate-800 shadow-sm">
-        <button
-          onClick={handleExportExcel}
-          title="ดาวน์โหลดข้อมูลเป็นไฟล์ Excel (.xlsx)"
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition active:scale-95"
-        >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-          <span>ดาวน์โหลด Excel</span>
-        </button>
-
-        <button
-          onClick={handleTriggerFileInput}
-          disabled={isProcessingFile}
-          title="นำเข้าไฟล์ Excel ที่แก้ไขแล้วมาบันทึกทับข้อมูลเดิม"
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 text-xs font-bold transition active:scale-95"
-        >
-          <Upload className={`w-4 h-4 text-sky-400 ${isProcessingFile ? 'animate-bounce' : ''}`} />
-          <span>{isProcessingFile ? 'กำลังอ่านไฟล์...' : 'นำเข้า Excel ทับข้อมูลเดิม'}</span>
-        </button>
-      </div>
 
       {/* Import Notification Toast */}
       {importNotice && (
@@ -359,12 +338,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       {/* Transaction Items List */}
       <div className="space-y-2">
-        {filteredTransactions.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 bg-slate-900/40 rounded-2xl border border-slate-800">
-            ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา
-          </div>
-        ) : (
-          filteredTransactions.map((tx) => (
+        {filteredTransactions.map((tx) => (
             <div
               key={tx.id}
               onClick={() => onEditTransaction(tx)}
@@ -440,8 +414,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 </div>
               </div>
             </div>
-          ))
-        )}
+          ))}
       </div>
 
       {/* Confirmation Modal: Import & Overwrite */}
