@@ -24,8 +24,6 @@ import { SecurityLock } from './components/SecurityLock';
 import { Navbar, TabType } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
 import { TransactionsView } from './components/TransactionsView';
-import { InstallmentsView } from './components/InstallmentsView';
-import { AnalyticsView } from './components/AnalyticsView';
 import { CardsView } from './components/CardsView';
 import { SettingsView } from './components/SettingsView';
 import { TransactionModal } from './components/TransactionModal';
@@ -184,11 +182,6 @@ export default function App() {
     return count;
   }, [cards, transactions]);
 
-  // Active installments count for Navbar badge
-  const activeInstallmentsCount = useMemo(() => {
-    const groups = groupInstallments(transactions);
-    return groups.filter((g) => !g.isCompleted).length;
-  }, [transactions]);
 
   // Handle Save Transaction (create, update, or generate multi-month installment plan)
   const handleSaveTransaction = useCallback(
@@ -409,23 +402,6 @@ export default function App() {
           />
         )}
 
-        {currentTab === 'installments' && (
-          <InstallmentsView
-            transactions={transactions}
-            cards={cards}
-            onOpenAddModal={() => handleOpenAddModal('ซื้อ')}
-          />
-        )}
-
-        {currentTab === 'analytics' && (
-          <AnalyticsView
-            transactions={transactions}
-            cards={cards}
-            budgetSettings={budgetSettings}
-            onUpdateBudget={handleUpdateBudget}
-          />
-        )}
-
         {currentTab === 'cards' && (
           <CardsView
             cards={cards}
@@ -466,7 +442,6 @@ export default function App() {
       <Navbar
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
-        activeInstallmentsCount={activeInstallmentsCount}
         upcomingDueCount={upcomingDueCount}
       />
 

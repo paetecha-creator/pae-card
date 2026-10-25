@@ -26,7 +26,7 @@ interface DashboardViewProps {
   transactions: Transaction[];
   onOpenAddModal: (defaultType?: 'ซื้อ' | 'เงินคืน' | 'จ่ายบิล') => void;
   onOpenCardDetails: (card: CreditCard) => void;
-  onSelectTab: (tab: 'dashboard' | 'transactions' | 'installments' | 'analytics' | 'cards' | 'settings') => void;
+  onSelectTab: (tab: 'dashboard' | 'transactions' | 'cards' | 'settings') => void;
   onLockApp: () => void;
   isOnline: boolean;
   syncStatus?: 'synced' | 'syncing' | 'offline' | 'idle';
@@ -231,7 +231,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Quick Action Buttons */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <button
           onClick={() => onOpenAddModal('ซื้อ')}
           className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-850 active:scale-95 transition group"
@@ -260,16 +260,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <ArrowDownLeft className="w-5 h-5" />
           </div>
           <span className="text-[11px] font-medium text-slate-300">เงินคืน</span>
-        </button>
-
-        <button
-          onClick={() => onSelectTab('installments')}
-          className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 hover:border-purple-500/50 hover:bg-slate-850 active:scale-95 transition group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mb-1 group-hover:scale-110 transition">
-            <Calendar className="w-5 h-5" />
-          </div>
-          <span className="text-[11px] font-medium text-slate-300">ผ่อนชำระ</span>
         </button>
       </div>
 

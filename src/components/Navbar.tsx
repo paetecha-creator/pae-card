@@ -1,19 +1,17 @@
 import React from 'react';
-import { LayoutDashboard, Receipt, CalendarClock, PieChart, CreditCard as CardIcon, Settings } from 'lucide-react';
+import { LayoutDashboard, Receipt, CreditCard as CardIcon, Settings } from 'lucide-react';
 
-export type TabType = 'dashboard' | 'transactions' | 'installments' | 'analytics' | 'cards' | 'settings';
+export type TabType = 'dashboard' | 'transactions' | 'cards' | 'settings';
 
 interface NavbarProps {
   currentTab: TabType;
   onSelectTab: (tab: TabType) => void;
-  activeInstallmentsCount?: number;
   upcomingDueCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onSelectTab,
-  activeInstallmentsCount = 0,
   upcomingDueCount = 0,
 }) => {
   const tabs = [
@@ -28,18 +26,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       id: 'transactions' as TabType,
       label: 'รายการ',
       icon: Receipt,
-    },
-    {
-      id: 'installments' as TabType,
-      label: 'ผ่อนชำระ',
-      icon: CalendarClock,
-      badge: activeInstallmentsCount > 0 ? activeInstallmentsCount : undefined,
-      badgeColor: 'bg-indigo-500',
-    },
-    {
-      id: 'analytics' as TabType,
-      label: 'วิเคราะห์',
-      icon: PieChart,
     },
     {
       id: 'cards' as TabType,
